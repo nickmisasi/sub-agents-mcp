@@ -147,25 +147,37 @@ Note: Agents often run commands as one-liners like `cd /path && make build`, so 
 
 ## Usage Examples
 
-Just tell your AI to use an agent:
+Each agent is exposed as its own MCP tool. Just tell your AI to use the agent:
 
 ```
-"Use the code-reviewer agent to check my UserService class"
-```
-
-```
-"Use the test-writer agent to create unit tests for the auth module"
+"Use the agent_code-reviewer tool to check my UserService class"
 ```
 
 ```
-"Use the doc-writer agent to add JSDoc comments to all public methods"
+"Use the agent_test-writer tool to create unit tests for the auth module"
+```
+
+```
+"Use the agent_doc-writer tool to add JSDoc comments to all public methods"
 ```
 
 Your AI automatically invokes the specialized agent and returns results.
 
+### Advanced: Custom Output Instructions
+
+You can control how agents format their responses:
+
+```
+"Use the agent_code-reviewer tool with output_instructions set to 'Return only a JSON array of issues'"
+```
+
+If you don't specify output_instructions, agents will provide a brief summary of what they accomplished and suggest next steps.
+
 ## Agent Examples
 
-Each `.md` or `.txt` file in your agents folder becomes an agent. The filename becomes the agent name (e.g., `test-writer.md` → "test-writer").
+Each `.md` or `.txt` file in your agents folder becomes an MCP tool:
+- Filename: `test-writer.md` → Tool: `agent_test-writer`
+- Filename: `code-reviewer.md` → Tool: `agent_code-reviewer`
 
 ### Test Writer
 

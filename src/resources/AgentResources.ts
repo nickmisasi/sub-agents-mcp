@@ -6,7 +6,6 @@
  */
 
 import type { AgentManager } from 'src/agents/AgentManager'
-import type { AgentDefinition } from 'src/types/AgentDefinition'
 import { Logger } from 'src/utils/Logger'
 
 /**
@@ -65,45 +64,13 @@ export class AgentResources {
 
     const resources: McpResource[] = []
 
-    // Add agent list resource
+    // Add agent list resource (agents are now exposed as tools, not individual resources)
     resources.push({
       uri: 'agents://list',
       name: 'Agent List',
-      description: 'List of available Claude Code sub-agents',
+      description: 'List of available agents (each agent is exposed as its own MCP tool)',
       mimeType: 'text/plain',
     })
-
-    // Add individual agent resources if agent manager is available
-    if (this.agentManager) {
-      try {
-        const agents = await this.agentManager.listAgents()
-
-        this.logger.debug('Agents loaded for resource listing', {
-          agentCount: agents.length,
-          loadTime: Date.now() - startTime,
-        })
-
-        for (const agent of agents) {
-          resources.push({
-            uri: `agents://${agent.name}`,
-            name: `Agent: ${agent.name}`,
-            description: agent.description || 'Agent definition',
-            mimeType: 'text/markdown',
-          })
-        }
-      } catch (error) {
-        this.logger.error(
-          'Failed to load agents for resource listing',
-          error instanceof Error ? error : undefined,
-          {
-            loadTime: Date.now() - startTime,
-          }
-        )
-        // If we can't load agents, just return the list resource
-      }
-    } else {
-      this.logger.warn('Agent manager not available for resource listing')
-    }
 
     this.logger.info('Resource listing completed', {
       resourceCount: resources.length,
@@ -136,14 +103,9 @@ export class AgentResources {
       if (uri === 'agents://list') {
         result = await this.getAgentListContent()
       } else {
-        // Check for individual agent resource
-        const agentNameMatch = uri.match(/^agents:\/\/(.+)$/)
-        if (agentNameMatch?.[1]) {
-          const agentName = agentNameMatch[1]
-          result = await this.getAgentContent(agentName)
-        } else {
-          throw new Error(`Invalid resource URI format: ${uri}`)
-        }
+        throw new Error(
+          `Invalid resource URI: ${uri}. Individual agents are now exposed as MCP tools with the prefix 'agent_'. Use the agents://list resource to see all available agents.`
+        )
       }
 
       this.logger.info('Resource read completed', {
@@ -198,14 +160,29 @@ export class AgentResources {
         }
       }
 
-      let listText = `Available Claude Code Sub-Agents (${agents.length} total):\n\n`
+      let listText = `Available Agents (${agents.length} total)\n\n`
+      listText += `Each agent is exposed as its own MCP tool with the prefix 'agent_'.\n\n`
+      listText += '---\n\n'
 
       for (const agent of agents) {
+        // Sanitize tool name the same way DynamicAgentTool does
+        const toolName = `agent_${agent.name.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+
         listText += `## ${agent.name}\n`
         listText += `**Description:** ${agent.description}\n`
+        listText += `**Tool Name:** ${toolName}\n`
         listText += `**File:** ${agent.filePath}\n`
         listText += `**Last Modified:** ${agent.lastModified.toISOString()}\n`
-        listText += `**Resource URI:** agents://${agent.name}\n\n`
+
+        // Add agent type and model if available
+        if (agent.agentType) {
+          listText += `**Agent Type:** ${agent.agentType}\n`
+        }
+        if (agent.model) {
+          listText += `**Model:** ${agent.model}\n`
+        }
+
+        listText += '\n'
       }
 
       return {
@@ -231,108 +208,6 @@ export class AgentResources {
   }
 
   /**
-   * Get content for a specific agent resource
-   *
-   * @private
-   * @param agentName - Name of the agent to get content for
-   * @returns Promise resolving to agent content
-   */
-  private async getAgentContent(agentName: string): Promise<McpResourceResponse> {
-    if (!this.agentManager) {
-      return {
-        contents: [
-          {
-            type: 'text',
-            text: 'Agent manager not available. Agent content cannot be retrieved.',
-            uri: `agents://${agentName}`,
-          },
-        ],
-      }
-    }
-
-    try {
-      const agent = await this.agentManager.getAgent(agentName)
-
-      if (!agent) {
-        const availableAgents = await this.getAvailableAgentNames()
-        let errorText = `Agent '${agentName}' not found.`
-
-        if (availableAgents.length > 0) {
-          errorText += `\n\nAvailable agents:\n${availableAgents.map((name) => `- ${name}`).join('\n')}`
-        }
-
-        return {
-          contents: [
-            {
-              type: 'text',
-              text: errorText,
-              uri: `agents://${agentName}`,
-            },
-          ],
-        }
-      }
-
-      return {
-        contents: [
-          {
-            type: 'text',
-            text: this.formatAgentContent(agent),
-            uri: `agents://${agentName}`,
-          },
-        ],
-      }
-    } catch (error) {
-      return {
-        contents: [
-          {
-            type: 'text',
-            text: `Error loading agent '${agentName}': ${error instanceof Error ? error.message : 'Unknown error'}`,
-            uri: `agents://${agentName}`,
-          },
-        ],
-      }
-    }
-  }
-
-  /**
-   * Format agent definition content for display
-   *
-   * @private
-   * @param agent - Agent definition to format
-   * @returns Formatted content string
-   */
-  private formatAgentContent(agent: AgentDefinition): string {
-    let content = `# Agent: ${agent.name}\n\n`
-    content += `**Description:** ${agent.description}\n`
-    content += `**File Path:** ${agent.filePath}\n`
-    content += `**Last Modified:** ${agent.lastModified.toISOString()}\n`
-    content += `**Content Length:** ${agent.content.length} characters\n\n`
-    content += '## Agent Definition\n\n'
-    content += agent.content
-
-    return content
-  }
-
-  /**
-   * Get list of available agent names
-   *
-   * @private
-   * @returns Promise resolving to array of agent names
-   */
-  private async getAvailableAgentNames(): Promise<string[]> {
-    if (!this.agentManager) {
-      return []
-    }
-
-    try {
-      const agents = await this.agentManager.listAgents()
-      return agents.map((agent) => agent.name)
-    } catch (error) {
-      return []
-    }
-  }
-
-  /**
    * Generate unique request ID for tracking
    *
    * @private
@@ -353,27 +228,7 @@ export class AgentResources {
       return false
     }
 
-    if (uri === 'agents://list') {
-      return true
-    }
-
-    const agentNameMatch = uri.match(/^agents:\/\/(.+)$/)
-    if (!agentNameMatch || !agentNameMatch[1]) {
-      return false
-    }
-
-    const agentName = agentNameMatch[1]
-
-    // Validate agent name format
-    if (agentName.length === 0 || agentName.length > 100) {
-      return false
-    }
-
-    // Check for valid characters (same as RunAgentTool validation)
-    if (!/^[a-zA-Z0-9_-]+$/.test(agentName)) {
-      return false
-    }
-
-    return true
+    // Only agents://list is valid now; individual agents are exposed as tools
+    return uri === 'agents://list'
   }
 }

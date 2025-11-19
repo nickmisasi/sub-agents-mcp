@@ -29,7 +29,7 @@ import { AgentManager } from 'src/agents/AgentManager'
 import type { ServerConfig } from 'src/config/ServerConfig'
 import { AgentExecutor, createExecutionConfig } from 'src/execution/AgentExecutor'
 import { AgentResources } from 'src/resources/AgentResources'
-import { RunAgentTool } from 'src/tools/RunAgentTool'
+import { DynamicAgentTool } from 'src/tools/DynamicAgentTools'
 import { AppError, ValidationError } from 'src/utils/ErrorHandler'
 import { Logger } from 'src/utils/Logger'
 
@@ -55,7 +55,7 @@ export class McpServer {
   private config: ServerConfig
   private agentManager: AgentManager
   private agentExecutor: AgentExecutor
-  private runAgentTool: RunAgentTool
+  private dynamicTools: Map<string, DynamicAgentTool> = new Map()
   private agentResources: AgentResources
 
   /**
@@ -84,7 +84,6 @@ export class McpServer {
     const executorLogger = new Logger(config.logLevel)
 
     this.agentExecutor = new AgentExecutor(executionConfig, executorLogger)
-    this.runAgentTool = new RunAgentTool(this.agentExecutor, this.agentManager)
     this.agentResources = new AgentResources(this.agentManager)
 
     // Initialize MCP server with capabilities
@@ -108,6 +107,42 @@ export class McpServer {
     this.setupHandlers()
 
     this.log('info', 'MCP server initialized successfully')
+  }
+
+  /**
+   * Initialize dynamic agent tools by loading all agents and creating tool instances
+   *
+   * @private
+   */
+  private async initializeDynamicTools(): Promise<void> {
+    try {
+      this.log('debug', 'Initializing dynamic agent tools')
+      const startTime = Date.now()
+
+      const agents = await this.agentManager.listAgents()
+
+      for (const agent of agents) {
+        const tool = new DynamicAgentTool(
+          agent.name,
+          agent.description,
+          this.agentExecutor,
+          this.agentManager
+        )
+        this.dynamicTools.set(tool.name, tool)
+      }
+
+      this.log('info', 'Dynamic agent tools initialized successfully', {
+        toolCount: this.dynamicTools.size,
+        initTime: Date.now() - startTime,
+      })
+    } catch (error) {
+      // Log the error but don't throw - allow server to work with 0 agents
+      this.log('warn', 'Failed to initialize dynamic agent tools (server will have 0 tools)', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      // Clear any partially loaded tools
+      this.dynamicTools.clear()
+    }
   }
 
   /**
@@ -175,14 +210,19 @@ export class McpServer {
         this.log('debug', 'Received list_tools request')
 
         try {
+          // Ensure dynamic tools are initialized
+          if (this.dynamicTools.size === 0) {
+            await this.initializeDynamicTools()
+          }
+
+          const tools = Array.from(this.dynamicTools.values()).map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+          }))
+
           const result: ListToolsResult = {
-            tools: [
-              {
-                name: this.runAgentTool.name,
-                description: this.runAgentTool.description,
-                inputSchema: this.runAgentTool.inputSchema,
-              },
-            ],
+            tools,
           }
 
           this.log('debug', 'List tools request completed', {
@@ -209,19 +249,25 @@ export class McpServer {
           this.log('debug', 'Received call_tool request', { tool: params.name })
 
           try {
-            if (params.name === 'run_agent') {
-              const result = await this.runAgentTool.execute(params.arguments)
-
-              this.log('info', 'Tool execution completed', {
-                tool: params.name,
-                responseTime: Date.now() - startTime,
-                success: true,
-              })
-
-              return result as CallToolResult
+            // Ensure dynamic tools are initialized
+            if (this.dynamicTools.size === 0) {
+              await this.initializeDynamicTools()
             }
 
-            throw new ValidationError(`Unknown tool: ${params.name}`, 'UNKNOWN_TOOL')
+            const tool = this.dynamicTools.get(params.name)
+            if (!tool) {
+              throw new ValidationError(`Unknown tool: ${params.name}`, 'UNKNOWN_TOOL')
+            }
+
+            const result = await tool.execute(params.arguments)
+
+            this.log('info', 'Tool execution completed', {
+              tool: params.name,
+              responseTime: Date.now() - startTime,
+              success: true,
+            })
+
+            return result as CallToolResult
           } catch (error) {
             this.log('error', 'Tool execution failed', {
               tool: params.name,
@@ -365,13 +411,16 @@ export class McpServer {
    * @returns Promise resolving to array of tool definitions
    */
   async listTools(): Promise<Array<{ name: string; description: string; inputSchema: unknown }>> {
-    return [
-      {
-        name: this.runAgentTool.name,
-        description: this.runAgentTool.description,
-        inputSchema: this.runAgentTool.inputSchema,
-      },
-    ]
+    // Ensure dynamic tools are initialized
+    if (this.dynamicTools.size === 0) {
+      await this.initializeDynamicTools()
+    }
+
+    return Array.from(this.dynamicTools.values()).map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    }))
   }
 
   /**
@@ -394,10 +443,17 @@ export class McpServer {
    * @returns Promise resolving to tool response
    */
   async callTool(toolName: string, params: unknown): Promise<unknown> {
-    if (toolName === 'run_agent') {
-      return await this.runAgentTool.execute(params)
+    // Ensure dynamic tools are initialized
+    if (this.dynamicTools.size === 0) {
+      await this.initializeDynamicTools()
     }
-    throw new ValidationError(`Unknown tool: ${toolName}`, 'UNKNOWN_TOOL')
+
+    const tool = this.dynamicTools.get(toolName)
+    if (!tool) {
+      throw new ValidationError(`Unknown tool: ${toolName}`, 'UNKNOWN_TOOL')
+    }
+
+    return await tool.execute(params)
   }
 
   /**
@@ -421,9 +477,17 @@ export class McpServer {
     serverInfo: { name: string; version: string }
     executionStats: Map<string, { count: number; totalTime: number; lastUsed: Date }>
   } {
+    // Aggregate stats from all dynamic tools
+    const aggregatedStats = new Map<string, { count: number; totalTime: number; lastUsed: Date }>()
+
+    for (const [toolName, tool] of this.dynamicTools.entries()) {
+      const stats = tool.getExecutionStats()
+      aggregatedStats.set(toolName, stats)
+    }
+
     return {
       serverInfo: this.getServerInfo(),
-      executionStats: this.runAgentTool.getExecutionStats(),
+      executionStats: aggregatedStats,
     }
   }
 

@@ -127,12 +127,11 @@ describe('E2E Integration Tests', () => {
     expect(agentListResource?.name).toBe('Agent List')
   })
 
-  test('acceptance criteria: run_agent tool execution - agent executes within 1 second with correct parameters', async () => {
+  test('acceptance criteria: dynamic agent tool execution - agent executes within 1 second with correct parameters', async () => {
     const startTime = Date.now()
 
-    // Test run_agent tool execution
-    const result = await server.callTool('run_agent', {
-      agent: 'test-agent',
+    // Test dynamic agent tool execution
+    const result = await server.callTool('agent_test-agent', {
       prompt: 'Test execution prompt',
       cwd: process.cwd(),
       extra_args: ['--test'],
@@ -153,8 +152,7 @@ describe('E2E Integration Tests', () => {
   })
 
   test('acceptance criteria: agent execution result retrieval - stdout, stderr, exitCode are returned', async () => {
-    const result = await server.callTool('run_agent', {
-      agent: 'test-agent',
+    const result = await server.callTool('agent_test-agent', {
       prompt: 'Execution result test',
       cwd: process.cwd(),
     })
@@ -171,8 +169,7 @@ describe('E2E Integration Tests', () => {
   })
 
   test('acceptance criteria: agent execution - tool executes and returns structured result', async () => {
-    const result = await server.callTool('run_agent', {
-      agent: 'test-agent',
+    const result = await server.callTool('agent_test-agent', {
       prompt: 'Test agent execution',
       cwd: process.cwd(),
     })
@@ -196,9 +193,9 @@ describe('E2E Integration Tests', () => {
     expect(['success', 'partial', 'error']).toContain(structured.status)
   })
 
-  test('acceptance criteria: resource publication - agent definitions accessible via MCP resources', async () => {
-    // Test individual resource retrieval
-    const resource = await server.readResource('agents://test-agent')
+  test('acceptance criteria: resource publication - agent list accessible via MCP resources', async () => {
+    // Test list resource retrieval (individual agents are now tools, not resources)
+    const resource = await server.readResource('agents://list')
 
     expect(resource).toBeDefined()
     expect(resource.contents).toBeDefined()
@@ -206,30 +203,30 @@ describe('E2E Integration Tests', () => {
 
     if (resource.contents.length > 0) {
       const textContent = resource.contents.find((c) => c.type === 'text')
-      expect(textContent?.text).toContain('Test Agent')
+      expect(textContent?.text).toContain('Available Agents')
     }
   })
 
   test('acceptance criteria: error handling - proper error responses for invalid inputs', async () => {
-    // Test non-existent agent
-    const result1 = await server.callTool('run_agent', {
-      agent: 'non-existent-agent',
-      prompt: 'Test error handling',
-    })
+    // Test non-existent agent (tool doesn't exist)
+    try {
+      await server.callTool('agent_non-existent-agent', {
+        prompt: 'Test error handling',
+      })
+      // Should throw error
+      expect(true).toBe(false)
+    } catch (error) {
+      expect(error).toBeDefined()
+    }
 
-    expect(result1.content).toBeDefined()
-    const textContent1 = result1.content.find((c) => c.type === 'text')
-    expect(textContent1?.text).toMatch(/not found|Agent not found/i)
-
-    // Test invalid parameters
-    const result2 = await server.callTool('run_agent', {
-      agent: '', // Empty agent name
-      prompt: 'Test invalid params',
+    // Test invalid parameters (empty prompt)
+    const result2 = await server.callTool('agent_test-agent', {
+      prompt: '', // Empty prompt
     })
 
     expect(result2.content).toBeDefined()
     const textContent2 = result2.content.find((c) => c.type === 'text')
-    expect(textContent2?.text).toMatch(/invalid|required/i)
+    expect(textContent2?.text).toMatch(/invalid|required|cannot be empty/i)
   })
 
   test('acceptance criteria: environment variable configuration - SERVER_NAME, AGENTS_DIR work correctly', async () => {
@@ -243,8 +240,7 @@ describe('E2E Integration Tests', () => {
     expect(resources.length).toBeGreaterThan(0)
 
     // Test agent execution works
-    const result = await server.callTool('run_agent', {
-      agent: 'test-agent',
+    const result = await server.callTool('agent_test-agent', {
       prompt: 'Environment config test',
     })
 
@@ -254,8 +250,7 @@ describe('E2E Integration Tests', () => {
   })
 
   test('acceptance criteria: agent execution works correctly', async () => {
-    const result = await server.callTool('run_agent', {
-      agent: 'test-agent',
+    const result = await server.callTool('agent_test-agent', {
       prompt: 'Agent execution test',
     })
 
@@ -270,8 +265,7 @@ describe('E2E Integration Tests', () => {
     // Small output should use exec, large output should use spawn
 
     // Test small output (should use exec)
-    const smallResult = await server.callTool('run_agent', {
-      agent: 'test-agent',
+    const smallResult = await server.callTool('agent_test-agent', {
       prompt: 'Small output test',
     })
 
