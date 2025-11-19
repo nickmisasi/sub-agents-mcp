@@ -171,11 +171,17 @@ export class RunAgentTool {
 
         // Get agent definition content if available
         let agentContext = validatedParams.agent
+        let agentType: 'cursor' | 'claude' | undefined
+        let model: string | undefined
+
         if (this.agentManager) {
           const agent = await this.agentManager.getAgent(validatedParams.agent)
           if (agent?.content) {
             // Include full agent definition content as system context
             agentContext = agent.content
+            // Get agent-specific configuration
+            agentType = agent.agentType
+            model = agent.model
           }
         }
 
@@ -186,7 +192,15 @@ export class RunAgentTool {
           ...(validatedParams.extra_args !== undefined && {
             extra_args: validatedParams.extra_args,
           }),
+          ...(agentType && { agentType }),
+          ...(model && { model }),
         }
+
+        this.logger.debug('Execution params prepared', {
+          requestId,
+          agentType: agentType || 'default',
+          model: model || 'none',
+        })
 
         // Report progress: Executing agent
 
@@ -208,7 +222,13 @@ export class RunAgentTool {
 
         // Mark MCP request as completed
 
-        return this.formatExecutionResponse(result, validatedParams.agent, requestId)
+        return this.formatExecutionResponse(
+          result,
+          validatedParams.agent,
+          requestId,
+          agentType,
+          model
+        )
       }
 
       // Fallback response if executor is not available
@@ -339,12 +359,16 @@ export class RunAgentTool {
    * @param result - Agent execution result
    * @param agentName - Name of the executed agent
    * @param requestId - Request tracking ID
+   * @param agentType - Optional agent type used
+   * @param model - Optional model used
    * @returns Formatted MCP response
    */
   private formatExecutionResponse(
     result: AgentExecutionResult,
     agentName: string,
-    requestId?: string
+    requestId?: string,
+    agentType?: string,
+    model?: string
   ): McpToolResponse {
     // Determine execution status
     const isSuccess =
@@ -366,6 +390,12 @@ export class RunAgentTool {
       status: isSuccess ? 'success' : isPartialSuccess ? 'partial' : 'error',
     }
 
+    if (agentType) {
+      structuredContent['agentType'] = agentType
+    }
+    if (model) {
+      structuredContent['model'] = model
+    }
     if (result.resultJson) {
       structuredContent['result'] = result.resultJson
     }

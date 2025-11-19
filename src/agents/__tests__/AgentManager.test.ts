@@ -152,6 +152,194 @@ describe('AgentManager', () => {
       expect(agent!.lastModified).toEqual(mockStats.mtime)
     })
 
+    it('should parse Claude Code format with YAML frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['playwright-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+name: playwright-test-generator
+description: 'Use this agent when you need to create automated browser tests using Playwright'
+tools: Glob, Grep, Read, LS
+model: sonnet
+agentType: claude
+color: blue
+---
+
+This agent helps create Playwright tests.
+
+# Usage
+Call this agent when you need to test browser functionality.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/playwright-agent.md')
+      mockBasename.mockReturnValue('playwright-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('playwright-test-generator')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.name).toBe('playwright-test-generator')
+      expect(agent!.description).toBe(
+        'Use this agent when you need to create automated browser tests using Playwright'
+      )
+      expect(agent!.model).toBe('sonnet')
+      expect(agent!.agentType).toBe('claude')
+      expect(agent!.color).toBe('blue')
+      expect(agent!.tools).toBe('Glob, Grep, Read, LS')
+      expect(agent!.content).not.toContain('---') // Content should not include frontmatter
+      expect(agent!.content).toContain('This agent helps create Playwright tests')
+      expect(agent!.filePath).toBe('/test/agents/playwright-agent.md')
+    })
+
+    it('should handle Claude Code format with quoted description containing special characters', async () => {
+      // Arrange
+      const mockFiles = ['special-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+name: special-test-agent
+description: "Agent with special: characters, and commas"
+model: opus
+---
+
+Agent content here.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/special-agent.md')
+      mockBasename.mockReturnValue('special-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('special-test-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.name).toBe('special-test-agent')
+      expect(agent!.description).toBe('Agent with special: characters, and commas')
+      expect(agent!.model).toBe('opus')
+    })
+
+    it('should fallback to filename if no name in frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['fallback-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+description: 'Agent without explicit name field'
+model: sonnet
+---
+
+Content here.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/fallback-agent.md')
+      mockBasename.mockReturnValue('fallback-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('fallback-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.name).toBe('fallback-agent')
+      expect(agent!.description).toBe('Agent without explicit name field')
+      expect(agent!.model).toBe('sonnet')
+    })
+
+    it('should fallback to content extraction if no frontmatter description', async () => {
+      // Arrange
+      const mockFiles = ['partial-frontmatter.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+name: partial-agent
+model: sonnet
+---
+
+# My Agent Title
+
+This is the content.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/partial-frontmatter.md')
+      mockBasename.mockReturnValue('partial-frontmatter.md')
+
+      // Act
+      const agent = await agentManager.getAgent('partial-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.name).toBe('partial-agent')
+      expect(agent!.description).toBe('My Agent Title') // Extracted from first heading
+      expect(agent!.model).toBe('sonnet')
+    })
+
+    it('should parse agentType override from frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['cursor-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+name: cursor-specific-agent
+description: 'This agent specifically uses the cursor CLI'
+agentType: cursor
+model: gpt-4
+---
+
+Content for cursor agent.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/cursor-agent.md')
+      mockBasename.mockReturnValue('cursor-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('cursor-specific-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.name).toBe('cursor-specific-agent')
+      expect(agent!.agentType).toBe('cursor')
+      expect(agent!.model).toBe('gpt-4')
+      expect(agent!.description).toBe('This agent specifically uses the cursor CLI')
+    })
+
+    it('should validate agentType values and ignore invalid ones', async () => {
+      // Arrange
+      const mockFiles = ['invalid-type-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+name: invalid-type-agent
+description: 'Agent with invalid agentType'
+agentType: invalid-value
+---
+
+Content here.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/invalid-type-agent.md')
+      mockBasename.mockReturnValue('invalid-type-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('invalid-type-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.agentType).toBeUndefined() // Invalid value should be ignored
+    })
+
     it('should extract description from first heading in markdown', async () => {
       // Arrange
       const mockFiles = ['agent.md']

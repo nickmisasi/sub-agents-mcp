@@ -145,6 +145,8 @@ export class AgentExecutor {
       promptLength: params.prompt.length,
       cwd: params.cwd,
       extraArgs: params.extra_args?.length || 0,
+      agentType: params.agentType,
+      model: params.model,
     })
 
     try {
@@ -220,16 +222,24 @@ export class AgentExecutor {
       const formattedPrompt = `[System Context]\n${params.agent}\n\n[User Prompt]\n${params.prompt}`
       const args = ['--output-format', 'json', '-p', formattedPrompt]
 
-      // Determine command based on agent type
-      const command = this.config.agentType === 'claude' ? 'claude' : 'cursor-agent'
+      // Determine command based on agent type (params override > config > env var)
+      const effectiveAgentType = params.agentType || this.config.agentType
+      const command = effectiveAgentType === 'claude' ? 'claude' : 'cursor-agent'
+
+      // Add model parameter if specified (both CLIs support --model)
+      if (params.model) {
+        args.push('--model', params.model)
+      }
 
       // Add API key for cursor-cli if available
-      if (this.config.agentType === 'cursor' && process.env['CLI_API_KEY']) {
+      if (effectiveAgentType === 'cursor' && process.env['CLI_API_KEY']) {
         args.push('-a', process.env['CLI_API_KEY'])
       }
 
       this.logger.debug('Executing with spawn', {
         command,
+        agentType: effectiveAgentType,
+        model: params.model,
         cwd: params.cwd || process.cwd(),
       })
 
