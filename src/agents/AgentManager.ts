@@ -155,19 +155,29 @@ export class AgentManager {
       const content = await fs.promises.readFile(filePath, 'utf-8')
       const stats = await fs.promises.stat(filePath)
 
-      // Extract agent name from filename (without extension)
-      const fileName = path.basename(filePath)
-      const agentName = fileName.replace(/\.(md|txt)$/, '')
+      // Parse frontmatter if present
+      const { frontmatter, bodyContent } = this.parseFrontmatter(content)
 
-      // Parse description from content (first line or first heading)
-      const description = this.extractDescription(content)
+      // Extract agent name from filename (without extension) as fallback
+      const fileName = path.basename(filePath)
+      const fileBaseName = fileName.replace(/\.(md|txt)$/, '')
+
+      // Use frontmatter name if available, otherwise use filename
+      const agentName = frontmatter.name || fileBaseName
+
+      // Use frontmatter description if available, otherwise extract from content
+      const description = frontmatter.description || this.extractDescription(bodyContent || content)
 
       const agentDefinition: AgentDefinition = {
         name: agentName,
         description,
-        content,
+        content: bodyContent || content,
         filePath,
         lastModified: stats.mtime,
+        ...(frontmatter.model && { model: frontmatter.model }),
+        ...(frontmatter.color && { color: frontmatter.color }),
+        ...(frontmatter.tools && { tools: frontmatter.tools }),
+        ...(frontmatter.agentType && { agentType: frontmatter.agentType }),
       }
 
       this.logger.debug('Agent definition parsed successfully', {
@@ -175,6 +185,10 @@ export class AgentManager {
         description,
         contentLength: content.length,
         lastModified: stats.mtime?.toISOString() ?? 'unknown',
+        hasFrontmatter: !!frontmatter.name,
+        model: frontmatter.model,
+        color: frontmatter.color,
+        agentType: frontmatter.agentType,
       })
 
       return agentDefinition
@@ -185,6 +199,98 @@ export class AgentManager {
         { filePath }
       )
       return undefined
+    }
+  }
+
+  /**
+   * Parses YAML frontmatter from markdown content (Claude Code format).
+   * Extracts metadata like name, description, tools, model, color, and agentType.
+   *
+   * @param content - The full file content
+   * @returns Object with parsed frontmatter and remaining body content
+   */
+  private parseFrontmatter(content: string): {
+    frontmatter: {
+      name?: string
+      description?: string
+      tools?: string
+      model?: string
+      color?: string
+      agentType?: 'cursor' | 'claude'
+    }
+    bodyContent: string | null
+  } {
+    // Match YAML frontmatter between --- delimiters
+    const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/
+
+    const match = content.match(frontmatterRegex)
+
+    if (!match) {
+      // No frontmatter found, return empty metadata
+      return {
+        frontmatter: {},
+        bodyContent: null,
+      }
+    }
+
+    const frontmatterText = match[1]
+    const bodyContent = match[2]
+
+    const frontmatter: {
+      name?: string
+      description?: string
+      tools?: string
+      model?: string
+      color?: string
+      agentType?: 'cursor' | 'claude'
+    } = {}
+
+    if (frontmatterText) {
+      // Parse simple YAML key-value pairs
+      const lines = frontmatterText.split('\n')
+
+      for (const line of lines) {
+        // Match key: value or key: 'value' or key: "value"
+        const keyValueMatch = line.match(/^(\w+):\s*(.+)$/)
+
+        if (keyValueMatch) {
+          const key = keyValueMatch[1]?.trim()
+          let value = keyValueMatch[2]?.trim()
+
+          if (key && value) {
+            // Remove quotes if present
+            if (
+              (value.startsWith("'") && value.endsWith("'")) ||
+              (value.startsWith('"') && value.endsWith('"'))
+            ) {
+              value = value.slice(1, -1)
+            }
+
+            // Store relevant fields
+            if (key === 'name') {
+              frontmatter.name = value
+            } else if (key === 'description') {
+              frontmatter.description = value
+            } else if (key === 'tools') {
+              frontmatter.tools = value
+            } else if (key === 'model') {
+              frontmatter.model = value
+            } else if (key === 'color') {
+              frontmatter.color = value
+            } else if (key === 'agentType') {
+              // Validate agentType value
+              if (value === 'cursor' || value === 'claude') {
+                frontmatter.agentType = value
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      frontmatter,
+      bodyContent: bodyContent ?? null,
     }
   }
 

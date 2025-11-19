@@ -33,4 +33,29 @@ export interface AgentDefinition {
    * Used for cache invalidation and version tracking.
    */
   lastModified: Date
+
+  /**
+   * The AI model to use for this agent (e.g., "sonnet", "opus").
+   * Optional field from Claude Code format frontmatter.
+   */
+  model?: string
+
+  /**
+   * Color identifier for the agent in the UI.
+   * Optional field from Claude Code format frontmatter.
+   */
+  color?: string
+
+  /**
+   * Comma-separated list of tools available to the agent.
+   * Optional field from Claude Code format frontmatter.
+   */
+  tools?: string
+
+  /**
+   * Type of agent to use for execution (e.g., "cursor", "claude").
+   * Optional field that overrides the server's default agentType.
+   * If not specified, falls back to server configuration.
+   */
+  agentType?: 'cursor' | 'claude'
 }

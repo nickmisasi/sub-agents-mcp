@@ -26,6 +26,19 @@ export interface ExecutionParams {
    * These are passed to the Claude Code CLI when executing the agent.
    */
   extra_args?: string[]
+
+  /**
+   * Optional agent type override for this specific execution.
+   * If specified, overrides the server's default agentType configuration.
+   * Values: 'cursor' | 'claude'
+   */
+  agentType?: 'cursor' | 'claude'
+
+  /**
+   * Optional model to use for this agent (e.g., "sonnet", "opus").
+   * This is informational and may be used for logging or future CLI support.
+   */
+  model?: string
 }
 
 /**
