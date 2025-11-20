@@ -1,29 +1,18 @@
 # Sub-Agents MCP Server [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This project was originally forked from: https://github.com/shinpr/sub-agents-mcp. I've made a bunch of adjustments in order to better fit my workflow.
-
-
 Bring Claude Code–style sub-agents to any MCP-compatible tool.
 
 This MCP server lets you define task-specific AI agents (like "test-writer" or "code-reviewer") in markdown files, and execute them via Cursor CLI or Claude Code CLI backends.
 
 ## Why?
 
-Claude Code offers powerful sub-agent workflows—but they're limited to its own environment. This MCP server makes that workflow portable, so any MCP-compatible tool (Cursor, Claude Desktop, Windsurf, etc.) can use the same agents.
-
-**Concrete benefits:**
-- Define reusable agents once, use them across multiple tools
-- Share agent definitions within teams regardless of IDE choice
-- Leverage Cursor CLI or Claude Code CLI capabilities from any MCP client
-
-→ [Read the full story](https://dev.to/shinpr/bringing-claude-codes-sub-agents-to-any-mcp-compatible-tool-1hb9)
+Different code agents have different capabilities, and I haven't found one agent that can "do it all". I prefer IDE-based development and Cursor's interface as my main agent. But cursor doesn't support sub agents or skills. Claude Code has great support for these things, but it misses the flexibility of Cursor's ability to leverage different foundational models for different tasks, as well as it's ability to perform semantic code searches. This project allows you to bring the best of all tools together into your main driver. Claude Code can have access to a semantic search agent that spins up Cursor to do some work, or ask Gemini 3 Pro via Cursor to come up with a large refactor plan. Cursor can be exposed to sub agents that already exist like the Playwright MCP Server. The flexibility of this tool allows for endless possibilities
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Usage Examples](#usage-examples)
-- [Agent Examples](#agent-examples)
 - [Configuration Reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
 - [Multiple Clients & Concurrent Usage](#multiple-clients--concurrent-usage)
@@ -42,9 +31,15 @@ Claude Code offers powerful sub-agent workflows—but they're limited to its own
 
 ### 1. Create Your First Agent
 
-Create a folder for your agents and add `code-reviewer.md`:
+Create a folder for your agents and add `code-reviewer.md`. You can use frontmatter YAML to configure the agent, including which type of agent it should run as:
 
 ```markdown
+---
+name: code-reviewer
+description: Reviews code for bugs and issues
+agentType: claude # or "cursor"
+---
+
 # Code Reviewer
 
 You are a specialized AI assistant that reviews code.
@@ -80,32 +75,39 @@ Note: Claude Code installs the `claude` CLI command.
 
 ### 3. Configure MCP
 
-Add this to your MCP configuration file:
+Since this package is not published to npm yet, you need to run it from your local source.
 
-**Cursor:** `~/.cursor/mcp.json`
-**Claude Desktop:** `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
+1.  **Build the project**:
+    ```bash
+    npm run build
+    ```
 
-```json
-{
-  "mcpServers": {
-    "sub-agents": {
-      "command": "npx",
-      "args": ["-y", "sub-agents-mcp"],
-      "env": {
-        "AGENTS_DIR": "/absolute/path/to/your/agents-folder",
-        "AGENT_TYPE": "cursor"  // or "claude"
+2.  **Add to your MCP configuration**:
+
+    **Cursor:** `~/.cursor/mcp.json`
+    **Claude Desktop:** `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
+
+    ```json
+    {
+      "mcpServers": {
+        "sub-agents": {
+          "command": "npx",
+          "args": ["/absolute/path/to/sub-agents-mcp"],
+          "env": {
+            "AGENTS_DIR": "/absolute/path/to/your/agents-folder",
+            "AGENT_TYPE": "cursor"  // Fallback only. agentType in agent.md takes precedence.
+          }
+        }
       }
     }
-  }
-}
-```
+    ```
 
-**Important:** Use absolute paths only.
-- ✅ `/Users/john/Documents/my-agents` (Mac/Linux)
-- ✅ `C:\\Users\\john\\Documents\\my-agents` (Windows)
-- ❌ `./agents` or `~/agents` won't work
+    **Important:** Use absolute paths only.
+    - ✅ `/Users/john/Documents/my-agents` (Mac/Linux)
+    - ✅ `C:\\Users\\john\\Documents\\my-agents` (Windows)
+    - ❌ `./agents` or `~/agents` won't work
 
-Restart your IDE and you're ready to go.
+3.  Restart your IDE and you're ready to go.
 
 ### 4. Fix "Permission Denied" Errors When Running Shell Commands
 
@@ -174,45 +176,6 @@ You can control how agents format their responses:
 
 If you don't specify output_instructions, agents will provide a brief summary of what they accomplished and suggest next steps.
 
-## Agent Examples
-
-Each `.md` or `.txt` file in your agents folder becomes an MCP tool:
-- Filename: `test-writer.md` → Tool: `agent_test-writer`
-- Filename: `code-reviewer.md` → Tool: `agent_code-reviewer`
-
-### Test Writer
-
-**`test-writer.md`**
-```markdown
-# Test Writer
-You specialize in writing comprehensive unit tests.
-- Cover edge cases
-- Follow project testing patterns
-- Ensure good coverage
-```
-
-### SQL Expert
-
-**`sql-expert.md`**
-```markdown
-# SQL Expert
-You're a database specialist who helps with queries.
-- Optimize for performance
-- Suggest proper indexes
-- Help with complex JOINs
-```
-
-### Security Checker
-
-**`security-checker.md`**
-```markdown
-# Security Checker
-You focus on finding security vulnerabilities.
-- Check for SQL injection risks
-- Identify authentication issues
-- Find potential data leaks
-```
-
 ## Configuration Reference
 
 ### Required Environment Variables
@@ -221,9 +184,11 @@ You focus on finding security vulnerabilities.
 Path to your agents folder. Must be absolute.
 
 **`AGENT_TYPE`**
-Which execution engine to use:
+Default execution engine to use if not specified in the agent file:
 - `"cursor"` - uses `cursor-agent` CLI
 - `"claude"` - uses `claude` CLI
+
+Note: This is just a fallback. The `agentType` specified in the agent's markdown file takes precedence.
 
 ### Optional Settings
 
@@ -236,7 +201,7 @@ Example with timeout:
   "mcpServers": {
     "sub-agents": {
       "command": "npx",
-      "args": ["-y", "sub-agents-mcp"],
+      "args": ["/absolute/path/to/sub-agents-mcp"],
       "env": {
         "AGENTS_DIR": "/absolute/path/to/agents",
         "AGENT_TYPE": "cursor",
@@ -307,7 +272,7 @@ Yes! You can have Cursor, Claude Desktop, and any other MCP clients all using th
   "mcpServers": {
     "sub-agents": {
       "command": "npx",
-      "args": ["-y", "sub-agents-mcp"],
+      "args": ["/absolute/path/to/sub-agents-mcp"],
       "env": {
         "AGENTS_DIR": "/Users/you/shared-agents",
         "AGENT_TYPE": "cursor"
