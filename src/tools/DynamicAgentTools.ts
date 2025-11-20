@@ -446,4 +446,13 @@ export class DynamicAgentTool {
   getExecutionStats(): { count: number; totalTime: number; lastUsed: Date } {
     return { ...this.executionStats }
   }
+
+  /**
+   * Get the original agent name
+   *
+   * @returns Original agent name
+   */
+  getAgentName(): string {
+    return this.agentName
+  }
 }
