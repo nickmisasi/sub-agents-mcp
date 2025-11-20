@@ -121,6 +121,9 @@ export class McpServer {
 
       const agents = await this.agentManager.listAgents()
 
+      // Track tool names to detect collisions
+      const toolNameToAgents = new Map<string, string[]>()
+
       for (const agent of agents) {
         const tool = new DynamicAgentTool(
           agent.name,
@@ -128,11 +131,59 @@ export class McpServer {
           this.agentExecutor,
           this.agentManager
         )
+
+        // Check for collision
+        if (this.dynamicTools.has(tool.name)) {
+          // Collision detected - track all agents with this tool name
+          const existingAgents = toolNameToAgents.get(tool.name) || []
+          if (existingAgents.length === 0) {
+            // First collision - add the original agent that created this tool name
+            const existingTool = this.dynamicTools.get(tool.name)
+            if (existingTool) {
+              existingAgents.push((existingTool as any).agentName)
+            }
+          }
+          existingAgents.push(agent.name)
+          toolNameToAgents.set(tool.name, existingAgents)
+
+          // Log warning about collision
+          this.log('warn', 'Agent tool name collision detected', {
+            toolName: tool.name,
+            collidingAgents: existingAgents,
+            message: `Multiple agents sanitize to the same tool name '${tool.name}'. Only the last agent will be accessible.`,
+          })
+        } else {
+          // Track this tool name with its agent
+          toolNameToAgents.set(tool.name, [agent.name])
+        }
+
+        // Set the tool (will overwrite if collision occurs)
         this.dynamicTools.set(tool.name, tool)
       }
 
+      // Log summary of any collisions
+      const collisions = Array.from(toolNameToAgents.entries()).filter(
+        ([_, agentNames]) => agentNames.length > 1
+      )
+
+      if (collisions.length > 0) {
+        this.log('error', 'Agent tool name collisions detected during initialization', {
+          collisionCount: collisions.length,
+          collisions: collisions.map(([toolName, agentNames]) => ({
+            toolName,
+            agentNames,
+            hiddenAgents: agentNames.slice(0, -1),
+            accessibleAgent: agentNames[agentNames.length - 1],
+          })),
+          recommendation:
+            'Rename agents to avoid name collisions after sanitization. Agent names should differ by more than just special characters or spaces.',
+        })
+      }
+
       this.log('info', 'Dynamic agent tools initialized successfully', {
+        agentCount: agents.length,
         toolCount: this.dynamicTools.size,
+        collisionCount: collisions.length,
         initTime: Date.now() - startTime,
       })
     } catch (error) {

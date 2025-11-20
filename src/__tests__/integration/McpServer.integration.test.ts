@@ -306,4 +306,86 @@ describe('McpServer Integration', () => {
       }
     })
   })
+
+  describe('agent name collision detection', () => {
+    it('should detect and warn about tool name collisions', async () => {
+      // Create a temporary test directory with colliding agent names
+      const fs = await import('node:fs/promises')
+      const path = await import('node:path')
+      const { tmpdir } = await import('node:os')
+
+      const testDir = path.join(tmpdir(), 'mcp-collision-test-agents')
+      await fs.mkdir(testDir, { recursive: true })
+
+      try {
+        // Create agents with names that sanitize to the same tool name
+        await fs.writeFile(
+          path.join(testDir, 'my_agent.md'),
+          '# My Agent\n\nFirst agent with underscores.'
+        )
+        await fs.writeFile(
+          path.join(testDir, 'my agent.md'),
+          '# My Agent\n\nSecond agent with spaces.'
+        )
+        await fs.writeFile(
+          path.join(testDir, 'my-agent.md'),
+          '# My Agent\n\nThird agent with hyphens (should not collide).'
+        )
+
+        const collisionConfig = {
+          ...mockConfig,
+          agentsDir: testDir,
+          logLevel: 'debug' as const,
+        }
+
+        // Create server and capture logs
+        const logMessages: string[] = []
+        const originalConsoleLog = console.log
+        const originalConsoleWarn = console.warn
+        const originalConsoleError = console.error
+
+        console.log = (...args: any[]) => {
+          logMessages.push(args.join(' '))
+          originalConsoleLog(...args)
+        }
+        console.warn = (...args: any[]) => {
+          logMessages.push(args.join(' '))
+          originalConsoleWarn(...args)
+        }
+        console.error = (...args: any[]) => {
+          logMessages.push(args.join(' '))
+          originalConsoleError(...args)
+        }
+
+        try {
+          const collisionServer = new McpServer(collisionConfig)
+
+          // List tools to trigger initialization
+          const tools = await collisionServer.listTools()
+
+          // my_agent and "my agent" should both sanitize to agent_my_agent
+          // my-agent should be agent_my-agent (no collision)
+          const agentTools = tools.filter((tool) => tool.name.startsWith('agent_my'))
+
+          // Should have 2 unique tool names (agent_my_agent and agent_my-agent)
+          // But 3 agents were created
+          expect(agentTools.length).toBe(2)
+
+          // Check that collision was logged
+          const logString = logMessages.join('\n')
+          expect(logString).toMatch(/collision/i)
+          expect(logString).toMatch(/agent_my_agent/)
+
+          await collisionServer.close()
+        } finally {
+          console.log = originalConsoleLog
+          console.warn = originalConsoleWarn
+          console.error = originalConsoleError
+        }
+      } finally {
+        // Cleanup
+        await fs.rm(testDir, { recursive: true, force: true }).catch(() => {})
+      }
+    })
+  })
 })

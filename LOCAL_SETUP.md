@@ -303,6 +303,28 @@ You can have different configurations for different projects:
 
 This way, each project can have its own set of specialized agents!
 
+## Multiple Clients Running Simultaneously
+
+**Can I test with multiple clients at once (e.g., Cursor + Claude Desktop)?**
+
+Yes! Each MCP client automatically gets its own isolated server instance:
+
+- Each client runs `npx /path/to/sub-agents-mcp` → spawns its own Node.js process
+- MCP uses stdio (stdin/stdout) for communication, which is inherently 1:1
+- No conflicts or shared state between instances
+
+**Testing scenario:**
+1. Configure the same local path in both Cursor's `~/.cursor/mcp.json` and Claude Desktop's `~/Library/Application Support/Claude/claude_desktop_config.json`
+2. Start both applications
+3. Both will work independently, each with their own server process
+4. You can use agents from both clients simultaneously
+
+**Important notes:**
+- Each instance loads agents at startup
+- To see agent changes, restart the client (triggers server reload)
+- Both instances read from the same `AGENTS_DIR` (which is fine)
+- No shared state between server instances (stateless by design)
+
 ## Troubleshooting
 
 ### Server Not Starting
