@@ -26,6 +26,7 @@ Claude Code offers powerful sub-agent workflows—but they're limited to its own
 - [Agent Examples](#agent-examples)
 - [Configuration Reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
+- [Multiple Clients & Concurrent Usage](#multiple-clients--concurrent-usage)
 - [Design Philosophy](#design-philosophy)
 - [How It Works](#how-it-works)
 
@@ -147,25 +148,37 @@ Note: Agents often run commands as one-liners like `cd /path && make build`, so 
 
 ## Usage Examples
 
-Just tell your AI to use an agent:
+Each agent is exposed as its own MCP tool. Just tell your AI to use the agent:
 
 ```
-"Use the code-reviewer agent to check my UserService class"
-```
-
-```
-"Use the test-writer agent to create unit tests for the auth module"
+"Use the agent_code-reviewer tool to check my UserService class"
 ```
 
 ```
-"Use the doc-writer agent to add JSDoc comments to all public methods"
+"Use the agent_test-writer tool to create unit tests for the auth module"
+```
+
+```
+"Use the agent_doc-writer tool to add JSDoc comments to all public methods"
 ```
 
 Your AI automatically invokes the specialized agent and returns results.
 
+### Advanced: Custom Output Instructions
+
+You can control how agents format their responses:
+
+```
+"Use the agent_code-reviewer tool with output_instructions set to 'Return only a JSON array of issues'"
+```
+
+If you don't specify output_instructions, agents will provide a brief summary of what they accomplished and suggest next steps.
+
 ## Agent Examples
 
-Each `.md` or `.txt` file in your agents folder becomes an agent. The filename becomes the agent name (e.g., `test-writer.md` → "test-writer").
+Each `.md` or `.txt` file in your agents folder becomes an MCP tool:
+- Filename: `test-writer.md` → Tool: `agent_test-writer`
+- Filename: `code-reviewer.md` → Tool: `agent_code-reviewer`
 
 ### Test Writer
 
@@ -265,6 +278,46 @@ Check that:
 1. Verify `AGENT_TYPE` is set correctly (`cursor` or `claude`)
 2. Ensure your chosen CLI tool is installed and accessible
 3. Double-check that all environment variables are set in the MCP config
+
+## Multiple Clients & Concurrent Usage
+
+**Can I use this with multiple tools at once?**
+
+Yes! You can have Cursor, Claude Desktop, and any other MCP clients all using the same `sub-agents-mcp` configuration simultaneously. Each client automatically gets its own isolated server instance.
+
+**How it works:**
+- Each MCP client spawns its own `sub-agents-mcp` process via `npx`
+- MCP servers use **stdio** (stdin/stdout) for communication, which is inherently 1:1
+- When Cursor starts → it runs `npx sub-agents-mcp` → gets process A
+- When Claude Code starts → it runs `npx sub-agents-mcp` → gets process B
+- These processes are completely independent
+
+**What this means:**
+- ✅ No conflicts between clients
+- ✅ No port binding or resource contention
+- ✅ Each client sees the same agents from your `AGENTS_DIR`
+- ✅ Agents can run in parallel across different clients
+- ℹ️ Each instance loads agents at startup (restart client to reload changes)
+- ℹ️ No shared state between instances (stateless by design)
+
+**Example:**
+```json
+// Same config in both ~/.cursor/mcp.json AND ~/Library/Application Support/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "sub-agents": {
+      "command": "npx",
+      "args": ["-y", "sub-agents-mcp"],
+      "env": {
+        "AGENTS_DIR": "/Users/you/shared-agents",
+        "AGENT_TYPE": "cursor"
+      }
+    }
+  }
+}
+```
+
+Both Cursor and Claude Desktop will work perfectly at the same time, each with their own server process.
 
 ## Design Philosophy
 
