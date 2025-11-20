@@ -1,7 +1,7 @@
-# Sub-Agents MCP Server
+# Sub-Agents MCP Server [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This project was originally forked from: https://github.com/shinpr/sub-agents-mcp. I've made a bunch of adjustments in order to better fit my workflow.
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 
 Bring Claude Code–style sub-agents to any MCP-compatible tool.
 
