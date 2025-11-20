@@ -140,7 +140,7 @@ export class McpServer {
             // First collision - add the original agent that created this tool name
             const existingTool = this.dynamicTools.get(tool.name)
             if (existingTool) {
-              existingAgents.push((existingTool as any).agentName)
+              existingAgents.push(existingTool.getAgentName())
             }
           }
           existingAgents.push(agent.name)

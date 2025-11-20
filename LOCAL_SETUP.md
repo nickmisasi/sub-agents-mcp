@@ -11,7 +11,7 @@ This guide explains how to use your locally developed sub-agents-mcp server with
      "mcpServers": {
        "sub-agents": {
          "command": "npx",
-         "args": ["/Users/nickmisasi/workspace/sub-agents-mcp"],
+         "args": ["/absolute/path/to/sub-agents-mcp"],
          "env": {
            "AGENTS_DIR": "/path/to/your/agents"
          }
@@ -63,7 +63,7 @@ Add this to your Cursor MCP settings file (`~/.cursor/mcp.json` or in your proje
     "sub-agents": {
       "command": "npx",
       "args": [
-        "/Users/nickmisasi/workspace/sub-agents-mcp"
+        "/absolute/path/to/sub-agents-mcp"
       ],
       "env": {
         "AGENTS_DIR": "/absolute/path/to/your/agents",
@@ -82,7 +82,7 @@ Add this to your Cursor MCP settings file (`~/.cursor/mcp.json` or in your proje
     "sub-agents": {
       "command": "node",
       "args": [
-        "/Users/nickmisasi/workspace/sub-agents-mcp/dist/index.js"
+        "/absolute/path/to/sub-agents-mcp/dist/index.js"
       ],
       "env": {
         "AGENTS_DIR": "/absolute/path/to/your/agents",
@@ -105,7 +105,7 @@ Add this to your Claude Desktop MCP settings file (`~/Library/Application Suppor
     "sub-agents": {
       "command": "npx",
       "args": [
-        "/Users/nickmisasi/workspace/sub-agents-mcp"
+        "/absolute/path/to/sub-agents-mcp"
       ],
       "env": {
         "AGENTS_DIR": "/absolute/path/to/your/agents",
@@ -124,7 +124,7 @@ Add this to your Claude Desktop MCP settings file (`~/Library/Application Suppor
     "sub-agents": {
       "command": "node",
       "args": [
-        "/Users/nickmisasi/workspace/sub-agents-mcp/dist/index.js"
+        "/absolute/path/to/sub-agents-mcp/dist/index.js"
       ],
       "env": {
         "AGENTS_DIR": "/absolute/path/to/your/agents",
@@ -148,10 +148,10 @@ You can also set this up per-project by creating a `.cursor/mcp.json` file in an
     "sub-agents": {
       "command": "npx",
       "args": [
-        "/Users/nickmisasi/workspace/sub-agents-mcp"
+        "/absolute/path/to/sub-agents-mcp"
       ],
       "env": {
-        "AGENTS_DIR": "/Users/nickmisasi/workspace/my-project/agents",
+        "AGENTS_DIR": "/absolute/path/to/my-project/agents",
         "AGENT_TYPE": "cursor",
         "LOG_LEVEL": "info"
       }
@@ -276,9 +276,9 @@ You can have different configurations for different projects:
   "mcpServers": {
     "sub-agents": {
       "command": "npx",
-      "args": ["/Users/nickmisasi/workspace/sub-agents-mcp"],
+      "args": ["/absolute/path/to/sub-agents-mcp"],
       "env": {
-        "AGENTS_DIR": "/Users/nickmisasi/personal-agents"
+        "AGENTS_DIR": "/home/username/personal-agents"
       }
     }
   }
@@ -291,9 +291,9 @@ You can have different configurations for different projects:
   "mcpServers": {
     "sub-agents": {
       "command": "npx",
-      "args": ["/Users/nickmisasi/workspace/sub-agents-mcp"],
+      "args": ["/absolute/path/to/sub-agents-mcp"],
       "env": {
-        "AGENTS_DIR": "/Users/nickmisasi/work/project-name/agents",
+        "AGENTS_DIR": "/home/username/work/project-name/agents",
         "AGENT_TYPE": "claude"
       }
     }
@@ -347,7 +347,7 @@ Yes! Each MCP client automatically gets its own isolated server instance:
 When you make changes to the code:
 
 ```bash
-cd /Users/nickmisasi/workspace/sub-agents-mcp
+cd /path/to/sub-agents-mcp
 npm run build
 # Then restart your IDE
 ```
