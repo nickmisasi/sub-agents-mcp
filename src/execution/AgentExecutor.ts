@@ -57,9 +57,9 @@ export interface ExecutionConfig {
 
   /**
    * Type of agent to use for execution.
-   * 'cursor' or 'claude'
+   * 'cursor' or 'claude' or 'gemini'
    */
-  agentType: 'cursor' | 'claude'
+  agentType: 'cursor' | 'claude' | 'gemini'
 }
 
 export const DEFAULT_EXECUTION_TIMEOUT = 300000 // 5 minutes
@@ -70,7 +70,7 @@ export const DEFAULT_EXECUTION_TIMEOUT = 300000 // 5 minutes
  * @param overrides - Optional overrides for thresholds
  */
 export function createExecutionConfig(
-  agentType: 'cursor' | 'claude',
+  agentType: 'cursor' | 'claude' | 'gemini',
   overrides?: Partial<Omit<ExecutionConfig, 'agentType'>>
 ): ExecutionConfig {
   return {
@@ -204,6 +204,76 @@ export class AgentExecutor {
   }
 
   /**
+   * Constructs the command and arguments for the specific agent type.
+   *
+   * @private
+   * @param params - Execution parameters
+   * @param agentType - Resolved agent type
+   * @returns Object containing command and arguments array
+   */
+  private buildCommand(
+    params: ExecutionParams,
+    agentType: 'cursor' | 'claude' | 'gemini'
+  ): { command: string; args: string[] } {
+    const formattedPrompt = `[System Context]\n${params.agent}\n\n[User Prompt]\n${params.prompt}`
+    const args: string[] = []
+    let command: string
+
+    switch (agentType) {
+      case 'gemini':
+        command = 'gemini'
+        // Gemini uses positional argument for prompt
+        args.push(formattedPrompt)
+        args.push('--output-format', 'json')
+
+        if (params.tools && params.tools.length > 0) {
+          args.push('--allowed-tools', params.tools.join(','))
+        }
+
+        if (params.autoApprovalMode) {
+          args.push('--approval-mode', 'yolo')
+        }
+        break
+
+      case 'claude':
+        command = 'claude'
+        args.push('--output-format', 'json', '-p', formattedPrompt)
+
+        if (params.tools && params.tools.length > 0) {
+          args.push('--tools', params.tools.join(','))
+        }
+
+        if (params.autoApprovalMode) {
+          args.push('--dangerously-skip-permissions')
+        }
+        break
+
+      default:
+        command = 'cursor-agent'
+        args.push('--output-format', 'json', '-p', formattedPrompt)
+        if (process.env['CLI_API_KEY']) {
+          args.push('-a', process.env['CLI_API_KEY'])
+        }
+
+        if (params.autoApprovalMode) {
+          args.push('-f')
+        }
+        break
+    }
+
+    // Common optional parameters
+    if (params.model) {
+      args.push('--model', params.model)
+    }
+
+    if (params.extra_args) {
+      args.push(...params.extra_args)
+    }
+
+    return { command, args }
+  }
+
+  /**
    * Executes an agent using child_process.spawn for proper TTY handling.
    *
    * @private
@@ -218,29 +288,18 @@ export class AgentExecutor {
     resultJson?: unknown
   }> {
     return new Promise((resolve) => {
-      // Generate command and args - both CLIs use the same interface
-      const formattedPrompt = `[System Context]\n${params.agent}\n\n[User Prompt]\n${params.prompt}`
-      const args = ['--output-format', 'json', '-p', formattedPrompt]
-
-      // Determine command based on agent type (params override > config > env var)
+      // Determine agent type (params override > config)
       const effectiveAgentType = params.agentType || this.config.agentType
-      const command = effectiveAgentType === 'claude' ? 'claude' : 'cursor-agent'
 
-      // Add model parameter if specified (both CLIs support --model)
-      if (params.model) {
-        args.push('--model', params.model)
-      }
-
-      // Add API key for cursor-cli if available
-      if (effectiveAgentType === 'cursor' && process.env['CLI_API_KEY']) {
-        args.push('-a', process.env['CLI_API_KEY'])
-      }
+      // Build command and arguments using the refactored strategy
+      const { command, args } = this.buildCommand(params, effectiveAgentType)
 
       this.logger.debug('Executing with spawn', {
         command,
         agentType: effectiveAgentType,
         model: params.model,
         cwd: params.cwd || process.cwd(),
+        argsLength: args.length,
       })
 
       // Spawn process

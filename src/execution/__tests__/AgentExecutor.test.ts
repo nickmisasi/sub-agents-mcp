@@ -131,6 +131,30 @@ describe('AgentExecutor', () => {
   })
 
   describe('executeAgent with spawn method', () => {
+    it('should pass tools and auto-approval flags to spawn args', async () => {
+      const params: ExecutionParams = {
+        agent: 'test-agent',
+        prompt: 'Help me',
+        cwd: '/tmp',
+        agentType: 'claude',
+        tools: ['tool1', 'tool2'],
+        autoApprovalMode: true,
+      }
+
+      // We need to spy on the private buildCommand method or check spawn calls
+      // Since buildCommand is private, we'll check spawn args via the mock
+      await executor.executeAgent(params)
+
+      // Get the last call to spawn
+      const spawnCalls = vi.mocked(mockSpawn).mock.calls
+      const lastCall = spawnCalls[spawnCalls.length - 1]
+      const args = lastCall[1] as string[]
+
+      expect(args).toContain('--tools')
+      expect(args).toContain('tool1,tool2')
+      expect(args).toContain('--dangerously-skip-permissions')
+    })
+
     it('should execute agent successfully with spawn', async () => {
       const params: ExecutionParams = {
         agent: 'test-agent',

@@ -177,10 +177,18 @@ describe('DynamicAgentTool', () => {
       )
     })
 
-    it('should pass agent agentType and model to executor', async () => {
+    it('should pass agent agentType, model, tools and autoApprovalMode to executor', async () => {
       const params = {
         prompt: 'Test prompt',
       }
+
+      // Setup agent with all properties
+      const fullMockAgent: AgentDefinition = {
+        ...mockAgent,
+        tools: ['tool1', 'tool2'],
+        autoApprovalMode: true,
+      }
+      vi.spyOn(mockAgentManager, 'getAgent').mockResolvedValue(fullMockAgent)
 
       await tool.execute(params)
 
@@ -188,6 +196,8 @@ describe('DynamicAgentTool', () => {
         expect.objectContaining({
           agentType: 'cursor',
           model: 'gpt-4',
+          tools: ['tool1', 'tool2'],
+          autoApprovalMode: true,
         })
       )
     })
