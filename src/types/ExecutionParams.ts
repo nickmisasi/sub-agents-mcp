@@ -30,15 +30,25 @@ export interface ExecutionParams {
   /**
    * Optional agent type override for this specific execution.
    * If specified, overrides the server's default agentType configuration.
-   * Values: 'cursor' | 'claude'
+   * Values: 'cursor' | 'claude' | 'gemini'
    */
-  agentType?: 'cursor' | 'claude'
+  agentType?: 'cursor' | 'claude' | 'gemini'
 
   /**
    * Optional model to use for this agent (e.g., "sonnet", "opus").
    * This is informational and may be used for logging or future CLI support.
    */
   model?: string
+
+  /**
+   * Optional list of tools to allow for this execution.
+   */
+  tools?: string[]
+
+  /**
+   * Whether to enable auto-approval mode.
+   */
+  autoApprovalMode?: boolean
 }
 
 /**

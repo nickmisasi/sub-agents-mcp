@@ -47,15 +47,21 @@ export interface AgentDefinition {
   color?: string
 
   /**
-   * Comma-separated list of tools available to the agent.
+   * List of tools available to the agent.
    * Optional field from Claude Code format frontmatter.
    */
-  tools?: string
+  tools?: string[]
 
   /**
-   * Type of agent to use for execution (e.g., "cursor", "claude").
+   * Whether to enable auto-approval mode for tools and permissions.
+   * Maps to --dangerously-skip-permissions (Claude), --approval-mode yolo (Gemini), or -f (Cursor).
+   */
+  autoApprovalMode?: boolean
+
+  /**
+   * Type of agent to use for execution (e.g., "cursor", "claude", "gemini").
    * Optional field that overrides the server's default agentType.
    * If not specified, falls back to server configuration.
    */
-  agentType?: 'cursor' | 'claude'
+  agentType?: 'cursor' | 'claude' | 'gemini'
 }

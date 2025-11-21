@@ -194,6 +194,10 @@ export class DynamicAgentTool {
         }),
         ...(agent.agentType && { agentType: agent.agentType }),
         ...(agent.model && { model: agent.model }),
+        ...(agent.tools && { tools: agent.tools }),
+        ...(agent.autoApprovalMode !== undefined && {
+          autoApprovalMode: agent.autoApprovalMode,
+        }),
       }
 
       // Execute agent
@@ -331,7 +335,7 @@ export class DynamicAgentTool {
   private formatExecutionResponse(
     result: AgentExecutionResult,
     requestId?: string,
-    agentType?: 'cursor' | 'claude',
+    agentType?: 'cursor' | 'claude' | 'gemini',
     model?: string
   ): McpToolResponse {
     // Determine execution status

@@ -152,6 +152,39 @@ describe('AgentManager', () => {
       expect(agent!.lastModified).toEqual(mockStats.mtime)
     })
 
+    it('should parse tools and autoApprovalMode from frontmatter', async () => {
+      // Arrange
+      const mockFiles = ['advanced-agent.md']
+      const mockStats = { mtime: new Date('2025-01-01') }
+      const mockContent = `---
+name: advanced-agent
+description: 'Agent with tools and auto-approval'
+tools: tool1, tool2, tool3
+autoApprovalMode: true
+model: claude-3
+agentType: claude
+---
+
+Content here.`
+
+      mockReaddir.mockResolvedValue(mockFiles as unknown as fs.Dirent[])
+      mockStat.mockResolvedValue(mockStats as fs.Stats)
+      mockReadFile.mockResolvedValue(mockContent)
+      mockResolve.mockReturnValue('/test/agents')
+      mockJoin.mockReturnValue('/test/agents/advanced-agent.md')
+      mockBasename.mockReturnValue('advanced-agent.md')
+
+      // Act
+      const agent = await agentManager.getAgent('advanced-agent')
+
+      // Assert
+      expect(agent).toBeDefined()
+      expect(agent!.name).toBe('advanced-agent')
+      expect(agent!.tools).toEqual(['tool1', 'tool2', 'tool3'])
+      expect(agent!.autoApprovalMode).toBe(true)
+      expect(agent!.agentType).toBe('claude')
+    })
+
     it('should parse Claude Code format with YAML frontmatter', async () => {
       // Arrange
       const mockFiles = ['playwright-agent.md']
@@ -189,7 +222,7 @@ Call this agent when you need to test browser functionality.`
       expect(agent!.model).toBe('sonnet')
       expect(agent!.agentType).toBe('claude')
       expect(agent!.color).toBe('blue')
-      expect(agent!.tools).toBe('Glob, Grep, Read, LS')
+      expect(agent!.tools).toEqual(['Glob', 'Grep', 'Read', 'LS'])
       expect(agent!.content).not.toContain('---') // Content should not include frontmatter
       expect(agent!.content).toContain('This agent helps create Playwright tests')
       expect(agent!.filePath).toBe('/test/agents/playwright-agent.md')

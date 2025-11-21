@@ -177,6 +177,9 @@ export class AgentManager {
         ...(frontmatter.model && { model: frontmatter.model }),
         ...(frontmatter.color && { color: frontmatter.color }),
         ...(frontmatter.tools && { tools: frontmatter.tools }),
+        ...(frontmatter.autoApprovalMode !== undefined && {
+          autoApprovalMode: frontmatter.autoApprovalMode,
+        }),
         ...(frontmatter.agentType && { agentType: frontmatter.agentType }),
       }
 
@@ -213,10 +216,11 @@ export class AgentManager {
     frontmatter: {
       name?: string
       description?: string
-      tools?: string
+      tools?: string[]
+      autoApprovalMode?: boolean
       model?: string
       color?: string
-      agentType?: 'cursor' | 'claude'
+      agentType?: 'cursor' | 'claude' | 'gemini'
     }
     bodyContent: string | null
   } {
@@ -239,10 +243,11 @@ export class AgentManager {
     const frontmatter: {
       name?: string
       description?: string
-      tools?: string
+      tools?: string[]
+      autoApprovalMode?: boolean
       model?: string
       color?: string
-      agentType?: 'cursor' | 'claude'
+      agentType?: 'cursor' | 'claude' | 'gemini'
     } = {}
 
     if (frontmatterText) {
@@ -272,14 +277,20 @@ export class AgentManager {
             } else if (key === 'description') {
               frontmatter.description = value
             } else if (key === 'tools') {
+              // Parse comma-separated tools list
               frontmatter.tools = value
+                .split(',')
+                .map((tool) => tool.trim())
+                .filter((tool) => tool.length > 0)
+            } else if (key === 'autoApprovalMode') {
+              frontmatter.autoApprovalMode = value === 'true'
             } else if (key === 'model') {
               frontmatter.model = value
             } else if (key === 'color') {
               frontmatter.color = value
             } else if (key === 'agentType') {
               // Validate agentType value
-              if (value === 'cursor' || value === 'claude') {
+              if (value === 'cursor' || value === 'claude' || value === 'gemini') {
                 frontmatter.agentType = value
               }
             }
